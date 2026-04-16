@@ -34,6 +34,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.params.hshift_changed.connect(self.refresh_image)
         self.params.size_changed.connect(self.resize_img)
         self.params.reset_size_requested.connect(self.reset_size)
+        self.params.crop_size_changed.connect(self.crop_image)
         self.params.save_requested.connect(self.save_image)
 
         self._old_onset = 0
@@ -59,6 +60,18 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _init_autorange(self) -> None:
         self.viewer.left_widget.viewbox.autoRange()
+
+    def crop_image(self):
+        params = self.params.get_parameters()
+        crop_x = params.get("crop_x")
+        crop_y = params.get("crop_y")
+        if crop_x is None or crop_y is None:
+            return
+        min_x, max_x = crop_x
+        min_y, max_y = crop_y
+        self.viewer.left_widget.show_crop_rect(min_x, max_x, min_y, max_y)
+        self.viewer.right_widget.show_crop_rect(min_x, max_x, min_y, max_y)
+
 
     def _on_changed_onset(self):
         params = self.params.get_parameters()
@@ -161,6 +174,14 @@ class MainWindow(QtWidgets.QMainWindow):
         h, w = self.corrected_img.shape
         self.params.width_spin.setValue(w)
         self.params.height_spin.setValue(h)
+        self.params.set_limit("crop_x_min", 0, w - 1)
+        self.params.set_limit("crop_x_max", 1, w)
+        self.params.set_limit("crop_y_min", 0, h - 1)
+        self.params.set_limit("crop_y_max", 1, h)
+        self.params.crop_x_min_spin.setValue(0)
+        self.params.crop_x_max_spin.setValue(w)
+        self.params.crop_y_min_spin.setValue(0)
+        self.params.crop_y_max_spin.setValue(h)
 
     def reload_image(self):
         params = self.params.get_parameters()
@@ -188,6 +209,19 @@ class MainWindow(QtWidgets.QMainWindow):
             h, w = self.corrected_img.shape
             new_width = params.get("width", w)
             new_height = params.get("height", h)
+
+            params = self.params.get_parameters()
+            crop_x = params.get("crop_x")
+            crop_y = params.get("crop_y")
+            if crop_x is None or crop_y is None:
+                return
+            min_x, max_x = crop_x
+            min_y, max_y = crop_y
+
+            scaled_min_x = int(round(min_x * new_width / w))
+            scaled_max_x = int(round(max_x * new_width / w))
+            scaled_min_y = int(round(min_y * new_height / h))
+            scaled_max_y = int(round(max_y * new_height / h))
 
             reply = QtWidgets.QMessageBox.question(
                 self,
@@ -234,6 +268,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 aligned_img = align_img(reshaped_img, hshift)
                 corrected_img = sine_correction(aligned_img)
                 corrected_img = cv2.resize(corrected_img, (new_width, new_height))
+                corrected_img = corrected_img[scaled_min_y:scaled_max_y, scaled_min_x:scaled_max_x]
 
                 corrected_img = np.clip(corrected_img, scale_min, scale_max)
                 corrected_img = (corrected_img - scale_min) / (scale_max - scale_min)

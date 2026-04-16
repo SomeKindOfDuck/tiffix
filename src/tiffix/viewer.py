@@ -1,6 +1,6 @@
 import numpy as np
 import pyqtgraph as pg
-from PyQt6 import QtGui, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 
 class SingleImageWidget(pg.GraphicsLayoutWidget):
@@ -23,6 +23,7 @@ class SingleImageWidget(pg.GraphicsLayoutWidget):
 
         self.image_item = pg.ImageItem()
         self.plot.addItem(self.image_item)
+        self.crop_rect = None
 
     @property
     def viewbox(self) -> pg.ViewBox:
@@ -67,6 +68,14 @@ class SingleImageWidget(pg.GraphicsLayoutWidget):
         transform.scale(sx, sy)
         self.image_item.setTransform(transform)
 
+    def show_crop_rect(self, min_x: int, max_x: int, min_y: int, max_y: int) -> None:
+        if hasattr(self, "crop_rect") and self.crop_rect is not None:
+            self.plot.removeItem(self.crop_rect)
+
+        pen = pg.mkPen(color=(255, 255, 0, 180), width=2, style=QtCore.Qt.PenStyle.DashLine)
+        self.crop_rect = QtWidgets.QGraphicsRectItem(min_x, min_y, max_x - min_x, max_y - min_y)
+        self.crop_rect.setPen(pen)
+        self.plot.addItem(self.crop_rect)
 
 
 class ImageCompareWidget(QtWidgets.QWidget):

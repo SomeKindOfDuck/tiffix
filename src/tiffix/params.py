@@ -1,14 +1,17 @@
+from typing import Any
+
 from PyQt6 import QtCore, QtWidgets
 
 
 class ParameterPanel(QtWidgets.QWidget):
+    select_dir_requested = QtCore.pyqtSignal()
     onset_changed = QtCore.pyqtSignal()
     nframe_changed = QtCore.pyqtSignal()
     hshift_changed = QtCore.pyqtSignal()
     load_requested = QtCore.pyqtSignal()
     size_changed = QtCore.pyqtSignal()
     reset_size_requested = QtCore.pyqtSignal()
-    select_dir_requested = QtCore.pyqtSignal()
+    crop_size_changed = QtCore.pyqtSignal()
     save_requested = QtCore.pyqtSignal()
 
     def __init__(self, parent=None):
@@ -80,20 +83,58 @@ class ParameterPanel(QtWidgets.QWidget):
         self.height_spin = QtWidgets.QSpinBox()
         self.height_spin.setRange(10, 10000)
         self.height_spin.setValue(1000)
-
         self.reset_size_button = QtWidgets.QPushButton("Reset size")
+
+        self.crop_x_min_spin = QtWidgets.QSpinBox()
+        self.crop_x_min_spin.setRange(0, 9999)
+        self.crop_x_min_spin.setValue(0)
+
+        self.crop_x_max_spin = QtWidgets.QSpinBox()
+        self.crop_x_max_spin.setRange(1, 10000)
+        self.crop_x_max_spin.setValue(10000)
+
+        self.crop_y_min_spin = QtWidgets.QSpinBox()
+        self.crop_y_min_spin.setRange(0, 9999)
+        self.crop_y_min_spin.setValue(0)
+
+        self.crop_y_max_spin = QtWidgets.QSpinBox()
+        self.crop_y_max_spin.setRange(1, 10000)
+        self.crop_y_max_spin.setValue(0)
+
+        crop_widget = QtWidgets.QWidget()
+        crop_layout = QtWidgets.QGridLayout(crop_widget)
+        crop_layout.setContentsMargins(0, 0, 0, 0)
+        crop_layout.setHorizontalSpacing(6)
+        crop_layout.setVerticalSpacing(2)
+
+        crop_layout.addWidget(QtWidgets.QLabel("Min"), 0, 0)
+        crop_layout.addWidget(QtWidgets.QLabel("Max"), 0, 1)
+        crop_layout.addWidget(self.crop_x_min_spin, 1, 0)
+        crop_layout.addWidget(self.crop_x_max_spin, 1, 1)
+        crop_layout.addWidget(self.crop_y_min_spin, 2, 0)
+        crop_layout.addWidget(self.crop_y_max_spin, 2, 1)
 
         form_layout.addRow("First frame", self.onset_spin)
         form_layout.addRow("Number of frames", self.nframe_spin)
         form_layout.addRow(self.auto_reload_checkbox)
         form_layout.addRow(self.load_button)
         form_layout.addRow("Horizontal shift (px)", self.hshift_spin)
+
+        form_layout.addRow(QtWidgets.QLabel(""))
+        image_size_label = QtWidgets.QLabel("Image size (px)")
+        form_layout.addRow(image_size_label)
         form_layout.addRow("Width", self.width_spin)
         form_layout.addRow("Height", self.height_spin)
         form_layout.addRow(self.reset_size_button)
 
+        form_layout.addRow(QtWidgets.QLabel(""))
+        crop_label = QtWidgets.QLabel("Cropping image")
+        form_layout.addRow(crop_label)
+        form_layout.addRow(crop_widget)
+
         main_layout.addLayout(form_layout)
         main_layout.addStretch()
+
 
         ################
         # Bottom Panel #
@@ -116,6 +157,10 @@ class ParameterPanel(QtWidgets.QWidget):
         self.width_spin.valueChanged.connect(self.size_changed)
         self.height_spin.valueChanged.connect(self.size_changed)
         self.reset_size_button.clicked.connect(self.reset_size_requested)
+        self.crop_x_min_spin.valueChanged.connect(self.crop_size_changed)
+        self.crop_x_max_spin.valueChanged.connect(self.crop_size_changed)
+        self.crop_y_min_spin.valueChanged.connect(self.crop_size_changed)
+        self.crop_y_max_spin.valueChanged.connect(self.crop_size_changed)
 
         self.select_dir_button.clicked.connect(self.select_dir_requested.emit)
         self.save_button.clicked.connect(self.save_requested.emit)
@@ -132,13 +177,15 @@ class ParameterPanel(QtWidgets.QWidget):
         else:
             self.load_button.setStyleSheet("")
 
-    def get_parameters(self) -> dict[str, int]:
+    def get_parameters(self) -> dict[str, Any]:
         return {
             "onset": self.onset_spin.value(),
             "nframe": self.nframe_spin.value(),
             "hshift": self.hshift_spin.value(),
             "width": self.width_spin.value(),
             "height": self.height_spin.value(),
+            "crop_x": (self.crop_x_min_spin.value(), self.crop_x_max_spin.value()),
+            "crop_y": (self.crop_y_min_spin.value(), self.crop_y_max_spin.value()),
         }
 
     def set_limit(self, param: str, vmin: int, vmax: int):
@@ -148,6 +195,14 @@ class ParameterPanel(QtWidgets.QWidget):
             self.nframe_spin.setRange(vmin, vmax)
         elif param == "hshift":
             self.hshift_spin.setRange(vmin, vmax)
+        elif param == "crop_x_min":
+            self.crop_x_min_spin.setRange(vmin, vmax)
+        elif param == "crop_x_max":
+            self.crop_x_max_spin.setRange(vmin, vmax)
+        elif param == "crop_y_min":
+            self.crop_y_min_spin.setRange(vmin, vmax)
+        elif param == "crop_y_max":
+            self.crop_y_max_spin.setRange(vmin, vmax)
         else:
             raise ValueError(f"{param}というパラメータは存在しません")
 
