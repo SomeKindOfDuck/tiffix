@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from PyQt6 import QtCore, QtWidgets
 
 from tiffix import align_img, load_mean_image, reshape_img, sine_correction
 from tiffix.params import ParameterPanel
+from tiffix.save import SaveImagesWorker
 from tiffix.theme import ICEBERG_DARK, apply_colorscheme
 from tiffix.viewer import ImageCompareWidget
 
@@ -260,34 +262,97 @@ class MainWindow(QtWidgets.QMainWindow):
                     f"Invalid scaling range: scale_min={scale_min}, scale_max={scale_max}"
                 )
 
-            for tf in self.tif_files:
-                output_path = output_dir / tf.name
+            max_workers_default = max(1, (os.cpu_count() or 2) - 1)
 
-                img = tifffile.imread(tf)
-                reshaped_img = reshape_img(img)
-                aligned_img = align_img(reshaped_img, hshift)
-                corrected_img = sine_correction(aligned_img)
-                corrected_img = cv2.resize(corrected_img, (new_width, new_height))
-                corrected_img = corrected_img[scaled_min_y:scaled_max_y, scaled_min_x:scaled_max_x]
-
-                corrected_img = np.clip(corrected_img, scale_min, scale_max)
-                corrected_img = (corrected_img - scale_min) / (scale_max - scale_min)
-                corrected_img = corrected_img * 65535.0
-                corrected_img = corrected_img.astype(np.uint16)
-
-                tifffile.imwrite(output_path, corrected_img)
-
-            QtWidgets.QMessageBox.information(
+            worker_count, ok = QtWidgets.QInputDialog.getInt(
                 self,
-                "Done",
-                f"Corrected images were saved to:\n{output_dir}",
+                "Worker count",
+                "Number of workers:",
+                value=max_workers_default,
+                min=1,
+                max=max_workers_default,
+                step=1,
             )
+
+            if not ok:
+                return
+
+            self.save_thread = QtCore.QThread(self)
+            self.save_worker = SaveImagesWorker(
+                tif_files=self.tif_files,
+                output_dir=output_dir,
+                hshift=hshift,
+                new_width=new_width,
+                new_height=new_height,
+                scaled_min_x=scaled_min_x,
+                scaled_max_x=scaled_max_x,
+                scaled_min_y=scaled_min_y,
+                scaled_max_y=scaled_max_y,
+                scale_min=scale_min,
+                scale_max=scale_max,
+                max_workers = worker_count
+            )
+
+            self.save_worker.moveToThread(self.save_thread)
+
+            self.save_progress_dialog = QtWidgets.QProgressDialog(
+                "Saving corrected images...",
+                "Cancel",
+                0,
+                len(self.tif_files),
+                self,
+            )
+            self.save_progress_dialog.setWindowTitle("Saving images")
+            self.save_progress_dialog.setWindowModality(QtCore.Qt.WindowModality.WindowModal)
+            self.save_progress_dialog.setMinimumDuration(0)
+            self.save_progress_dialog.setValue(0)
+
+            self.save_thread.started.connect(self.save_worker.run)
+            self.save_worker.finished.connect(self._on_save_finished)
+            self.save_worker.error.connect(self._on_save_error)
+            self.save_worker.progress.connect(self._on_save_progress)
+
+            self.save_worker.finished.connect(self.save_thread.quit)
+            self.save_worker.finished.connect(self.save_worker.deleteLater)
+            self.save_thread.finished.connect(self.save_thread.deleteLater)
+
+            self.save_thread.start()
         except Exception as e:
             QtWidgets.QMessageBox.critical(
                 self,
                 "Error",
                 f"Failed to save corrected images:\n{e}",
             )
+
+    def _on_save_progress(self, done: int, total: int) -> None:
+        if hasattr(self, "save_progress_dialog") and self.save_progress_dialog is not None:
+            self.save_progress_dialog.setMaximum(total)
+            self.save_progress_dialog.setValue(done)
+            self.save_progress_dialog.setLabelText(
+                f"Saving corrected images... ({done}/{total})"
+            )
+
+    def _on_save_finished(self) -> None:
+        if hasattr(self, "save_progress_dialog") and self.save_progress_dialog is not None:
+            self.save_progress_dialog.close()
+            self.save_progress_dialog = None
+
+        QtWidgets.QMessageBox.information(
+            self,
+            "Done",
+            "Corrected images were saved successfully.",
+        )
+
+    def _on_save_error(self, message: str) -> None:
+        if hasattr(self, "save_progress_dialog") and self.save_progress_dialog is not None:
+            self.save_progress_dialog.close()
+            self.save_progress_dialog = None
+
+        QtWidgets.QMessageBox.critical(
+            self,
+            "Error",
+            f"Failed to save corrected images:\n{message}",
+        )
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
