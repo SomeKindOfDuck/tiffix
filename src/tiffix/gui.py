@@ -50,15 +50,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._reload_timer.setSingleShot(True)
         self._reload_timer.timeout.connect(self._reload_image_debounced)
 
-        # self._rsize_timer = QtCore.QTimer(self)
-        # self._rsize_timer.setSingleShot(True)
-        # self._rsize_timer.timeout.connect(self._resize_image_debouce)
-
     def _reload_image_debounced(self) -> None:
         self.reload_image()
-
-    # def _resize_image_debouce(self) -> None:
-    #     self.resize_img()
 
     def _init_autorange(self) -> None:
         self.viewer.left_widget.viewbox.autoRange()
