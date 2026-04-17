@@ -114,8 +114,8 @@ class ParameterPanel(QtWidgets.QWidget):
         crop_layout.addWidget(self.crop_y_min_spin, 2, 0)
         crop_layout.addWidget(self.crop_y_max_spin, 2, 1)
 
-        form_layout.addRow("First frame", self.onset_spin)
-        form_layout.addRow("Number of frames", self.nframe_spin)
+        form_layout.addRow("Start frame for averaging", self.onset_spin)
+        form_layout.addRow("Frames for averaging", self.nframe_spin)
         form_layout.addRow(self.auto_reload_checkbox)
         form_layout.addRow(self.load_button)
         form_layout.addRow("Horizontal shift (px)", self.hshift_spin)
