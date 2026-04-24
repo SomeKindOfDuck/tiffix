@@ -34,8 +34,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.params.onset_changed.connect(self._on_changed_onset)
         self.params.nframe_changed.connect(self._on_changed_nframe)
         self.params.hshift_changed.connect(self.refresh_image)
-        self.params.size_changed.connect(self.resize_img)
-        self.params.reset_size_requested.connect(self.reset_size)
         self.params.crop_size_changed.connect(self.crop_image)
         self.params.save_requested.connect(self.save_image)
 
@@ -90,26 +88,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.params.is_auto_reload_enabled():
             self._reload_timer.start(250)
 
-    def resize_img(self):
-        params = self.params.get_parameters()
-        if self.corrected_img is None:
-            return
-        ih, iw = self.corrected_img.shape
-        width = params.get("width", iw)
-        height = params.get("height", ih)
-        sx, sy = width / iw, height / ih
-        self.viewer.left_widget.set_display_scale(sx, sy)
-        self.viewer.right_widget.set_display_scale(sx, sy)
-
-    def reset_size(self):
-        self.viewer.left_widget.set_display_scale(1., 1.)
-        self.viewer.right_widget.set_display_scale(1., 1.)
-        if self.corrected_img is None:
-            return
-        h, w = self.corrected_img.shape
-        self.params.width_spin.setValue(w)
-        self.params.height_spin.setValue(h)
-
 
     def select_directory(self) -> None:
         try:
@@ -145,8 +123,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.params.set_limit("onset", 0, self.n_files - 1)
             self.params.set_limit("nframe", 1, self.n_files - 1)
             self.params.set_limit("hshift", -w//5, w//5)
-            self.params.width_spin.setValue(w)
-            self.params.height_spin.setValue(h)
 
             QtCore.QTimer.singleShot(0, self._init_autorange)
             QtWidgets.QMessageBox.information(
@@ -167,8 +143,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.corrected_img = sine_correction(align_img(self.original_img, params.get("hshift", 0)))
         self.viewer.set_images(self.uncorrected_img, self.corrected_img)
         h, w = self.corrected_img.shape
-        self.params.width_spin.setValue(w)
-        self.params.height_spin.setValue(h)
         self.params.set_limit("crop_x_min", 0, w - 1)
         self.params.set_limit("crop_x_max", 1, w)
         self.params.set_limit("crop_y_min", 0, h - 1)

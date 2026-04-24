@@ -9,8 +9,6 @@ class ParameterPanel(QtWidgets.QWidget):
     nframe_changed = QtCore.pyqtSignal()
     hshift_changed = QtCore.pyqtSignal()
     load_requested = QtCore.pyqtSignal()
-    size_changed = QtCore.pyqtSignal()
-    reset_size_requested = QtCore.pyqtSignal()
     crop_size_changed = QtCore.pyqtSignal()
     save_requested = QtCore.pyqtSignal()
 
@@ -76,15 +74,6 @@ class ParameterPanel(QtWidgets.QWidget):
         self.hshift_spin.setRange(-1000000, 1000000)
         self.hshift_spin.setValue(0)
 
-        self.width_spin = QtWidgets.QSpinBox()
-        self.width_spin.setRange(10, 10000)
-        self.width_spin.setValue(1000)
-
-        self.height_spin = QtWidgets.QSpinBox()
-        self.height_spin.setRange(10, 10000)
-        self.height_spin.setValue(1000)
-        self.reset_size_button = QtWidgets.QPushButton("Reset size")
-
         self.crop_x_min_spin = QtWidgets.QSpinBox()
         self.crop_x_min_spin.setRange(0, 9999)
         self.crop_x_min_spin.setValue(0)
@@ -121,13 +110,6 @@ class ParameterPanel(QtWidgets.QWidget):
         form_layout.addRow("Horizontal shift (px)", self.hshift_spin)
 
         form_layout.addRow(QtWidgets.QLabel(""))
-        image_size_label = QtWidgets.QLabel("Image size (px)")
-        form_layout.addRow(image_size_label)
-        form_layout.addRow("Width", self.width_spin)
-        form_layout.addRow("Height", self.height_spin)
-        form_layout.addRow(self.reset_size_button)
-
-        form_layout.addRow(QtWidgets.QLabel(""))
         crop_label = QtWidgets.QLabel("Cropping image")
         form_layout.addRow(crop_label)
         form_layout.addRow(crop_widget)
@@ -154,9 +136,6 @@ class ParameterPanel(QtWidgets.QWidget):
         self.auto_reload_checkbox.toggled.connect(self._on_auto_reload_toggled)
         self.load_button.clicked.connect(self.load_requested.emit)
         self.hshift_spin.valueChanged.connect(self.hshift_changed)
-        self.width_spin.valueChanged.connect(self.size_changed)
-        self.height_spin.valueChanged.connect(self.size_changed)
-        self.reset_size_button.clicked.connect(self.reset_size_requested)
         self.crop_x_min_spin.valueChanged.connect(self.crop_size_changed)
         self.crop_x_max_spin.valueChanged.connect(self.crop_size_changed)
         self.crop_y_min_spin.valueChanged.connect(self.crop_size_changed)
@@ -182,8 +161,6 @@ class ParameterPanel(QtWidgets.QWidget):
             "onset": self.onset_spin.value(),
             "nframe": self.nframe_spin.value(),
             "hshift": self.hshift_spin.value(),
-            "width": self.width_spin.value(),
-            "height": self.height_spin.value(),
             "crop_x": (self.crop_x_min_spin.value(), self.crop_x_max_spin.value()),
             "crop_y": (self.crop_y_min_spin.value(), self.crop_y_max_spin.value()),
         }
