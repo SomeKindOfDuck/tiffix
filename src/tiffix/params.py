@@ -121,9 +121,26 @@ class ParameterPanel(QtWidgets.QWidget):
         ################
         # Bottom Panel #
         ################
+        self.save_start_spin = QtWidgets.QSpinBox()
+        self.save_start_spin.setRange(0, 1000000)
+        self.save_start_spin.setValue(0)
+        self.save_start_spin.setWrapping(False)
+
+        self.save_end_spin = QtWidgets.QSpinBox()
+        self.save_end_spin.setRange(0, 1000000)
+        self.save_end_spin.setValue(0)
+        self.save_end_spin.setWrapping(False)
+
         self.save_button = QtWidgets.QPushButton("Save corrected images")
 
+        save_range_widget = QtWidgets.QWidget()
+        save_range_layout = QtWidgets.QFormLayout(save_range_widget)
+        save_range_layout.setContentsMargins(0, 0, 0, 0)
+        save_range_layout.addRow("Save start index", self.save_start_spin)
+        save_range_layout.addRow("Save end index", self.save_end_spin)
+
         bottom_button_layout = QtWidgets.QVBoxLayout()
+        bottom_button_layout.addWidget(save_range_widget)
         bottom_button_layout.addWidget(self.save_button)
 
         main_layout.addLayout(bottom_button_layout)
@@ -163,6 +180,8 @@ class ParameterPanel(QtWidgets.QWidget):
             "hshift": self.hshift_spin.value(),
             "crop_x": (self.crop_x_min_spin.value(), self.crop_x_max_spin.value()),
             "crop_y": (self.crop_y_min_spin.value(), self.crop_y_max_spin.value()),
+            "save_start": self.save_start_spin.value(),
+            "save_end": self.save_end_spin.value(),
         }
 
     def set_limit(self, param: str, vmin: int, vmax: int):
@@ -180,6 +199,10 @@ class ParameterPanel(QtWidgets.QWidget):
             self.crop_y_min_spin.setRange(vmin, vmax)
         elif param == "crop_y_max":
             self.crop_y_max_spin.setRange(vmin, vmax)
+        elif param == "save_start":
+            self.save_start_spin.setRange(vmin, vmax)
+        elif param == "save_end":
+            self.save_end_spin.setRange(vmin, vmax)
         else:
             raise ValueError(f"{param}というパラメータは存在しません")
 

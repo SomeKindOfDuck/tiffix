@@ -124,6 +124,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.params.set_limit("nframe", 1, self.n_files - 1)
             self.params.set_limit("hshift", -w//5, w//5)
 
+            self.params.set_limit("save_start", 0, self.n_files - 1)
+            self.params.set_limit("save_end", 0, self.n_files - 1)
+            self.params.save_start_spin.setValue(0)
+            self.params.save_end_spin.setValue(self.n_files - 1)
+
             QtCore.QTimer.singleShot(0, self._init_autorange)
             QtWidgets.QMessageBox.information(
                 self,
@@ -173,6 +178,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
             params = self.params.get_parameters()
             hshift = params.get("hshift", 0)
+
+            save_start = params.get("save_start", 0)
+            save_end = params.get("save_end", self.n_files - 1)
+
+            if save_start > save_end:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Invalid save range",
+                    "Save start index must be less than or equal to save end index.",
+                )
+                return
+
+            selected_tif_files = self.tif_files[save_start:save_end + 1]
+
+            if len(selected_tif_files) == 0:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "No images selected",
+                    "No TIFF files are included in the selected save range.",
+                )
+                return
+
             if self.corrected_img is None:
                 return
             h, w = self.corrected_img.shape
@@ -198,6 +225,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"Apply horizontal shift correction of {hshift} px\n\n"
                 f"Output image size: {new_width} × {new_height}\n"
                 f"(original: {w} × {h})\n"
+                f"Save range: {save_start} - {save_end} "
+                f"({len(selected_tif_files)} images)\n"
                 f"If this is not desired, please reset the size.\n\n"
                 f"Target directory:\n{self.image_dir}\n\n"
                 f"Save corrected images to a 'corrected' subdirectory?",
@@ -246,7 +275,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.save_thread = QtCore.QThread(self)
             self.save_worker = SaveImagesWorker(
-                tif_files=self.tif_files,
+                tif_files=selected_tif_files,
                 output_dir=output_dir,
                 hshift=hshift,
                 new_width=new_width,
@@ -257,7 +286,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 scaled_max_y=scaled_max_y,
                 scale_min=scale_min,
                 scale_max=scale_max,
-                max_workers = worker_count
+                max_workers=worker_count,
             )
 
             self.save_worker.moveToThread(self.save_thread)
@@ -266,7 +295,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 "Saving corrected images...",
                 "Cancel",
                 0,
-                len(self.tif_files),
+                len(selected_tif_files),
                 self,
             )
             self.save_progress_dialog.setWindowTitle("Saving images")
