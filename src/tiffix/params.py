@@ -1,6 +1,68 @@
 from typing import Any
 
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
+
+
+class ClampSpinBox(QtWidgets.QSpinBox):
+    HARD_MIN = -2_000_000_000
+    HARD_MAX = 2_000_000_000
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self._limit_min = self.HARD_MIN
+        self._limit_max = self.HARD_MAX
+
+        super().setRange(self.HARD_MIN, self.HARD_MAX)
+
+        self.setKeyboardTracking(False)
+        self.editingFinished.connect(self.clamp_to_limit)
+
+    def setRange(self, vmin: int, vmax: int) -> None:
+        """
+        通常のQSpinBox.setRangeではなく、
+        アプリ側の論理的なlimitとして扱う。
+        """
+        self._limit_min = int(vmin)
+        self._limit_max = int(vmax)
+
+        super().setRange(self.HARD_MIN, self.HARD_MAX)
+
+        self.clamp_to_limit()
+
+    def minimum(self) -> int:
+        return self._limit_min
+
+    def maximum(self) -> int:
+        return self._limit_max
+
+    def validate(self, text: str, pos: int):
+        text = text.strip()
+
+        if text in ("", "+", "-"):
+            return (QtGui.QValidator.State.Intermediate, text, pos)
+
+        try:
+            int(text)
+        except ValueError:
+            return (QtGui.QValidator.State.Invalid, text, pos)
+
+        return (QtGui.QValidator.State.Acceptable, text, pos)
+
+    def clamp_to_limit(self) -> None:
+        text = self.lineEdit().text().strip()
+
+        try:
+            value = int(text)
+        except ValueError:
+            value = self.value()
+
+        if value < self._limit_min:
+            value = self._limit_min
+        elif value > self._limit_max:
+            value = self._limit_max
+
+        self.setValue(value)
 
 
 class ParameterPanel(QtWidgets.QWidget):
@@ -55,12 +117,12 @@ class ParameterPanel(QtWidgets.QWidget):
 
         form_layout = QtWidgets.QFormLayout()
 
-        self.onset_spin = QtWidgets.QSpinBox()
+        self.onset_spin = ClampSpinBox()
         self.onset_spin.setRange(0, 1000000)
         self.onset_spin.setValue(0)
         self.onset_spin.setWrapping(False)
 
-        self.nframe_spin = QtWidgets.QSpinBox()
+        self.nframe_spin = ClampSpinBox()
         self.nframe_spin.setRange(0, 1000000)
         self.nframe_spin.setValue(1)
         self.nframe_spin.setWrapping(False)
@@ -70,23 +132,23 @@ class ParameterPanel(QtWidgets.QWidget):
 
         self.load_button = QtWidgets.QPushButton("Reload image")
 
-        self.hshift_spin = QtWidgets.QSpinBox()
+        self.hshift_spin = ClampSpinBox()
         self.hshift_spin.setRange(-1000000, 1000000)
         self.hshift_spin.setValue(0)
 
-        self.crop_x_min_spin = QtWidgets.QSpinBox()
+        self.crop_x_min_spin = ClampSpinBox()
         self.crop_x_min_spin.setRange(0, 9999)
         self.crop_x_min_spin.setValue(0)
 
-        self.crop_x_max_spin = QtWidgets.QSpinBox()
+        self.crop_x_max_spin = ClampSpinBox()
         self.crop_x_max_spin.setRange(1, 10000)
         self.crop_x_max_spin.setValue(10000)
 
-        self.crop_y_min_spin = QtWidgets.QSpinBox()
+        self.crop_y_min_spin = ClampSpinBox()
         self.crop_y_min_spin.setRange(0, 9999)
         self.crop_y_min_spin.setValue(0)
 
-        self.crop_y_max_spin = QtWidgets.QSpinBox()
+        self.crop_y_max_spin = ClampSpinBox()
         self.crop_y_max_spin.setRange(1, 10000)
         self.crop_y_max_spin.setValue(0)
 
@@ -121,12 +183,12 @@ class ParameterPanel(QtWidgets.QWidget):
         ################
         # Bottom Panel #
         ################
-        self.save_start_spin = QtWidgets.QSpinBox()
+        self.save_start_spin = ClampSpinBox()
         self.save_start_spin.setRange(0, 1000000)
         self.save_start_spin.setValue(0)
         self.save_start_spin.setWrapping(False)
 
-        self.save_end_spin = QtWidgets.QSpinBox()
+        self.save_end_spin = ClampSpinBox()
         self.save_end_spin.setRange(0, 1000000)
         self.save_end_spin.setValue(0)
         self.save_end_spin.setWrapping(False)
@@ -186,25 +248,28 @@ class ParameterPanel(QtWidgets.QWidget):
 
     def set_limit(self, param: str, vmin: int, vmax: int):
         if param == "onset":
-            self.onset_spin.setRange(vmin, vmax)
+            spinbox = self.onset_spin
         elif param == "nframe":
-            self.nframe_spin.setRange(vmin, vmax)
+            spinbox = self.nframe_spin
         elif param == "hshift":
-            self.hshift_spin.setRange(vmin, vmax)
+            spinbox = self.hshift_spin
         elif param == "crop_x_min":
-            self.crop_x_min_spin.setRange(vmin, vmax)
+            spinbox = self.crop_x_min_spin
         elif param == "crop_x_max":
-            self.crop_x_max_spin.setRange(vmin, vmax)
+            spinbox = self.crop_x_max_spin
         elif param == "crop_y_min":
-            self.crop_y_min_spin.setRange(vmin, vmax)
+            spinbox = self.crop_y_min_spin
         elif param == "crop_y_max":
-            self.crop_y_max_spin.setRange(vmin, vmax)
+            spinbox = self.crop_y_max_spin
         elif param == "save_start":
-            self.save_start_spin.setRange(vmin, vmax)
+            spinbox = self.save_start_spin
         elif param == "save_end":
-            self.save_end_spin.setRange(vmin, vmax)
+            spinbox = self.save_end_spin
         else:
             raise ValueError(f"{param}というパラメータは存在しません")
+
+        spinbox.setRange(vmin, vmax)
+        spinbox.clamp_to_limit()
 
     def set_directory(self, directory: str) -> None:
         self.directory_label.setText(directory)

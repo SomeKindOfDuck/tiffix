@@ -69,25 +69,33 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_changed_onset(self):
         params = self.params.get_parameters()
         onset = params.get("onset", 0)
-        new_nframe_limit = self.n_files - onset - 1
-
         nframe = params.get("nframe", 1)
-        if onset + nframe >= self.n_files:
-            self.params.onset_spin.setValue(self._old_onset)
+
+        max_onset = max(0, self.n_files - nframe - 1)
+
+        if onset > max_onset:
+            self.params.onset_spin.setValue(max_onset)
             return
 
-        self._old_onset = onset
+        new_nframe_limit = max(1, self.n_files - onset - 1)
         self.params.set_limit("nframe", 1, new_nframe_limit)
+
         if self.params.is_auto_reload_enabled():
             self._reload_timer.start(250)
 
     def _on_changed_nframe(self):
         params = self.params.get_parameters()
         nframe = params.get("nframe", 1)
-        self.params.set_limit("onset", 0, self.n_files - nframe - 1)
+        onset = params.get("onset", 0)
+
+        max_nframe = max(1, self.n_files - onset - 1)
+
+        if nframe > max_nframe:
+            self.params.nframe_spin.setValue(max_nframe)
+            return
+
         if self.params.is_auto_reload_enabled():
             self._reload_timer.start(250)
-
 
     def select_directory(self) -> None:
         try:
