@@ -72,6 +72,7 @@ class ParameterPanel(QtWidgets.QWidget):
     hshift_changed = QtCore.pyqtSignal()
     load_requested = QtCore.pyqtSignal()
     crop_size_changed = QtCore.pyqtSignal()
+    resize_changed = QtCore.pyqtSignal()
     save_requested = QtCore.pyqtSignal()
 
     def __init__(self, parent=None):
@@ -158,12 +159,22 @@ class ParameterPanel(QtWidgets.QWidget):
         crop_layout.setHorizontalSpacing(6)
         crop_layout.setVerticalSpacing(2)
 
-        crop_layout.addWidget(QtWidgets.QLabel("Min"), 0, 0)
-        crop_layout.addWidget(QtWidgets.QLabel("Max"), 0, 1)
+        crop_layout.addWidget(QtWidgets.QLabel("Min (um)"), 0, 0)
+        crop_layout.addWidget(QtWidgets.QLabel("Max (um)"), 0, 1)
         crop_layout.addWidget(self.crop_x_min_spin, 1, 0)
         crop_layout.addWidget(self.crop_x_max_spin, 1, 1)
         crop_layout.addWidget(self.crop_y_min_spin, 2, 0)
         crop_layout.addWidget(self.crop_y_max_spin, 2, 1)
+
+        self.resize_width_um_spin = ClampSpinBox()
+        self.resize_width_um_spin.setRange(1, 10000)
+        self.resize_width_um_spin.setValue(1000)
+        self.resize_width_um_spin.setWrapping(False)
+
+        self.resize_height_um_spin = ClampSpinBox()
+        self.resize_height_um_spin.setRange(1, 10000)
+        self.resize_height_um_spin.setValue(1000)
+        self.resize_height_um_spin.setWrapping(False)
 
         form_layout.addRow("Start frame for averaging", self.onset_spin)
         form_layout.addRow("Frames for averaging", self.nframe_spin)
@@ -175,6 +186,12 @@ class ParameterPanel(QtWidgets.QWidget):
         crop_label = QtWidgets.QLabel("Cropping image")
         form_layout.addRow(crop_label)
         form_layout.addRow(crop_widget)
+
+        form_layout.addRow(QtWidgets.QLabel(""))
+        resize_label = QtWidgets.QLabel("Resize image")
+        form_layout.addRow(resize_label)
+        form_layout.addRow("Width (µm)", self.resize_width_um_spin)
+        form_layout.addRow("Height (µm)", self.resize_height_um_spin)
 
         main_layout.addLayout(form_layout)
         main_layout.addStretch()
@@ -219,6 +236,8 @@ class ParameterPanel(QtWidgets.QWidget):
         self.crop_x_max_spin.valueChanged.connect(self.crop_size_changed)
         self.crop_y_min_spin.valueChanged.connect(self.crop_size_changed)
         self.crop_y_max_spin.valueChanged.connect(self.crop_size_changed)
+        self.resize_width_um_spin.valueChanged.connect(self.resize_changed)
+        self.resize_height_um_spin.valueChanged.connect(self.resize_changed)
 
         self.select_dir_button.clicked.connect(self.select_dir_requested.emit)
         self.save_button.clicked.connect(self.save_requested.emit)
@@ -240,10 +259,10 @@ class ParameterPanel(QtWidgets.QWidget):
             "onset": self.onset_spin.value(),
             "nframe": self.nframe_spin.value(),
             "hshift": self.hshift_spin.value(),
-            "crop_x": (self.crop_x_min_spin.value(), self.crop_x_max_spin.value()),
-            "crop_y": (self.crop_y_min_spin.value(), self.crop_y_max_spin.value()),
-            "save_start": self.save_start_spin.value(),
-            "save_end": self.save_end_spin.value(),
+            "crop_x_um": (self.crop_x_min_spin.value(), self.crop_x_max_spin.value()),
+            "crop_y_um": (self.crop_y_min_spin.value(), self.crop_y_max_spin.value()),
+            "resize_width_um": self.resize_width_um_spin.value(),
+            "resize_height_um": self.resize_height_um_spin.value(),
         }
 
     def set_limit(self, param: str, vmin: int, vmax: int):
@@ -273,3 +292,13 @@ class ParameterPanel(QtWidgets.QWidget):
 
     def set_directory(self, directory: str) -> None:
         self.directory_label.setText(directory)
+
+    def set_resize_values(self, width: int, height: int) -> None:
+        old_width_block = self.resize_width_um_spin.blockSignals(True)
+        old_height_block = self.resize_height_um_spin.blockSignals(True)
+
+        self.resize_width_um_spin.setValue(width)
+        self.resize_height_um_spin.setValue(height)
+
+        self.resize_width_um_spin.blockSignals(old_width_block)
+        self.resize_height_um_spin.blockSignals(old_height_block)
