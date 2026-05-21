@@ -218,7 +218,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.image_dir = Path(directory)
             self.params.set_directory(directory)
-            self.reload_image()
+            self.reload_image(reset_geometry=True)
 
             h, w = self.corrected_img.shape
 
@@ -245,7 +245,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"Failed to select directory:\n{e}",
             )
 
-    def refresh_image(self):
+    def refresh_image(self, reset_crop: bool = False):
         params = self.params.get_parameters()
 
         self.corrected_img = sine_correction(
@@ -275,14 +275,15 @@ class MainWindow(QtWidgets.QMainWindow):
             self.params.set_limit("crop_y_min", 0, height_um - 1)
             self.params.set_limit("crop_y_max", 1, height_um)
 
-            self.params.crop_x_min_spin.setValue(0)
-            self.params.crop_x_max_spin.setValue(width_um)
-            self.params.crop_y_min_spin.setValue(0)
-            self.params.crop_y_max_spin.setValue(height_um)
+            if reset_crop:
+                self.params.crop_x_min_spin.setValue(0)
+                self.params.crop_x_max_spin.setValue(width_um)
+                self.params.crop_y_min_spin.setValue(0)
+                self.params.crop_y_max_spin.setValue(height_um)
 
         self.crop_image()
 
-    def reload_image(self):
+    def reload_image(self, reset_geometry: bool = False):
         params = self.params.get_parameters()
         onset = params.get("onset", 0)
         nframe = params.get("nframe", 1)
@@ -291,15 +292,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.original_img = load_mean_image(self.tif_files, onset, onset + nframe)
         self.uncorrected_img = sine_correction(self.original_img)
 
-        # resize 初期値は、補正後・resize前画像のサイズにする
-        preview_corrected_img = sine_correction(
-            align_img(self.original_img, params.get("hshift", 0))
-        )
-        h, w = preview_corrected_img.shape
+        if reset_geometry:
+            # resize 初期値は、補正後・resize前画像のサイズにする
+            preview_corrected_img = sine_correction(
+                align_img(self.original_img, params.get("hshift", 0))
+            )
+            h, w = preview_corrected_img.shape
 
-        self.params.set_resize_values(width=w, height=h)
+            self.params.set_resize_values(width=w, height=h)
 
-        self.refresh_image()
+        self.refresh_image(reset_crop=reset_geometry)
 
     def save_image(self) -> None:
         try:
@@ -337,17 +339,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
             if self.corrected_img is None:
                 return
-
-            h, w = self.corrected_img.shape
-
-            new_width, new_height = self._compute_resized_shape(
-                self.corrected_img,
-                width_um=params.get("resize_width_um"),
-                height_um=params.get("resize_height_um"),
-            )
-
-            params = self.params.get_parameters()
-            hshift = params.get("hshift", 0)
 
             if self.corrected_img is None:
                 return
