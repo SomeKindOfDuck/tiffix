@@ -35,7 +35,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.params.nframe_changed.connect(self._on_changed_nframe)
         self.params.hshift_changed.connect(self.refresh_image)
         self.params.crop_size_changed.connect(self.crop_image)
-        self.params.resize_changed.connect(self.refresh_image)
+        self.params.fov_changed.connect(self.refresh_image)
         self.params.save_requested.connect(self.save_image)
 
         self._old_onset = 0
@@ -64,7 +64,7 @@ class MainWindow(QtWidgets.QMainWindow):
         display_h, display_w = self.corrected_display_img.shape[:2]
         return display_w / width_um
 
-    def _compute_resized_shape(
+    def _compute_display_shape_from_fov(
         self,
         img: np.ndarray,
         width_um: int,
@@ -96,7 +96,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if width_um is None or height_um is None:
             return img
 
-        new_width, new_height = self._compute_resized_shape(
+        new_width, new_height = self._compute_display_shape_from_fov(
             img,
             width_um=width_um,
             height_um=height_um,
@@ -345,7 +345,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             h, w = self.corrected_img.shape
 
-            new_width, new_height = self._compute_resized_shape(
+            new_width, new_height = self._compute_display_shape_from_fov(
                 self.corrected_img,
                 width_um=params.get("resize_width_um"),
                 height_um=params.get("resize_height_um"),
