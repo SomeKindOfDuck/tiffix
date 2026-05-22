@@ -349,8 +349,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"Apply horizontal shift correction of {hshift} px\n\n"
                 f"Resized image size: {new_width} × {new_height} px\n"
                 f"Crop range: "
-                f"x={scaled_min_x}-{scaled_max_x}, "
-                f"y={scaled_min_y}-{scaled_max_y}\n"
+                f"x={scaled_min_x}-{scaled_max_x} px, "
+                f"y={scaled_min_y}-{scaled_max_y} px\n"
                 f"Final saved image size: {final_width} × {final_height} px\n\n"
                 f"Target directory:\n{self.image_dir}\n\n"
                 f"Save corrected images to a 'corrected' subdirectory?",
