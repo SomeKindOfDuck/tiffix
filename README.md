@@ -25,6 +25,7 @@ cd tiffix
 問題なくインストールできたら、`uv run tiffix`を実行して、GUIが立ち上がります。  
 
 上記のコマンドでもtiffixを使用することはできますが、プロジェクト直下で`uv tool install .`を実行することで、ワーキングディレクトリに関わらず`tiffix`でGUIを立ち上げることができるようになります。  
+最新版に更新する場合は、プロジェクト直下で`git pull origin main`の後に、`uv tool install . --reinstall`を実行することで、`tiffix`で最新版が実行されるようになります。  
 
 ## 使い方
 
