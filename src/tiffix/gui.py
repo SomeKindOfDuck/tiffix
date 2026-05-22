@@ -33,10 +33,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.params.load_requested.connect(self.reload_image)
         self.params.onset_changed.connect(self._on_changed_onset)
         self.params.nframe_changed.connect(self._on_changed_nframe)
-        self.params.hshift_changed.connect(self.refresh_image)
+        self.params.hshift_changed.connect(lambda: self.refresh_image(reset_crop=False))
         self.params.crop_size_changed.connect(self.crop_image)
-        self.params.fov_changed.connect(self.refresh_image)
-        self.params.output_size_changed.connect(self.refresh_image)
+        self.params.fov_changed.connect(lambda: self.refresh_image(reset_crop=True))
+        self.params.output_size_changed.connect(lambda: self.refresh_image(reset_crop=True))
         self.params.save_requested.connect(self.save_image)
 
         self._old_onset = 0
