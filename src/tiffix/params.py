@@ -73,6 +73,7 @@ class ParameterPanel(QtWidgets.QWidget):
     load_requested = QtCore.pyqtSignal()
     crop_size_changed = QtCore.pyqtSignal()
     fov_changed = QtCore.pyqtSignal()
+    output_size_changed = QtCore.pyqtSignal()
     save_requested = QtCore.pyqtSignal()
 
     def __init__(self, parent=None):
@@ -159,8 +160,8 @@ class ParameterPanel(QtWidgets.QWidget):
         crop_layout.setHorizontalSpacing(6)
         crop_layout.setVerticalSpacing(2)
 
-        crop_layout.addWidget(QtWidgets.QLabel("Min (um)"), 0, 0)
-        crop_layout.addWidget(QtWidgets.QLabel("Max (um)"), 0, 1)
+        crop_layout.addWidget(QtWidgets.QLabel("Min (px)"), 0, 0)
+        crop_layout.addWidget(QtWidgets.QLabel("Max (px)"), 0, 1)
         crop_layout.addWidget(self.crop_x_min_spin, 1, 0)
         crop_layout.addWidget(self.crop_x_max_spin, 1, 1)
         crop_layout.addWidget(self.crop_y_min_spin, 2, 0)
@@ -176,6 +177,19 @@ class ParameterPanel(QtWidgets.QWidget):
         self.fov_height_um_spin.setValue(1000)
         self.fov_height_um_spin.setWrapping(False)
 
+        self.output_width_px_spin = ClampSpinBox()
+        self.output_width_px_spin.setRange(1, 1000000)
+        self.output_width_px_spin.setValue(1000)
+        self.output_width_px_spin.setWrapping(False)
+
+        self.output_height_px_spin = ClampSpinBox()
+        self.output_height_px_spin.setRange(1, 1000000)
+        self.output_height_px_spin.setValue(1000)
+        self.output_height_px_spin.setWrapping(False)
+
+        self._updating_output_size = False
+        self._output_anchor_axis = "width"
+
         form_layout.addRow("Start frame for averaging", self.onset_spin)
         form_layout.addRow("Frames for averaging", self.nframe_spin)
         form_layout.addRow(self.auto_reload_checkbox)
@@ -188,10 +202,16 @@ class ParameterPanel(QtWidgets.QWidget):
         form_layout.addRow(crop_widget)
 
         form_layout.addRow(QtWidgets.QLabel(""))
-        resize_label = QtWidgets.QLabel("Field of view")
-        form_layout.addRow(resize_label)
+        fov_label = QtWidgets.QLabel("Field of view")
+        form_layout.addRow(fov_label)
         form_layout.addRow("FOV width (µm)", self.fov_width_um_spin)
         form_layout.addRow("FOV height (µm)", self.fov_height_um_spin)
+
+        form_layout.addRow(QtWidgets.QLabel(""))
+        output_label = QtWidgets.QLabel("Output image size")
+        form_layout.addRow(output_label)
+        form_layout.addRow("Output width (px)", self.output_width_px_spin)
+        form_layout.addRow("Output height (px)", self.output_height_px_spin)
 
         main_layout.addLayout(form_layout)
         main_layout.addStretch()
@@ -236,8 +256,10 @@ class ParameterPanel(QtWidgets.QWidget):
         self.crop_x_max_spin.valueChanged.connect(self.crop_size_changed)
         self.crop_y_min_spin.valueChanged.connect(self.crop_size_changed)
         self.crop_y_max_spin.valueChanged.connect(self.crop_size_changed)
-        self.fov_width_um_spin.valueChanged.connect(self.fov_changed)
-        self.fov_height_um_spin.valueChanged.connect(self.fov_changed)
+        self.fov_width_um_spin.valueChanged.connect(self._on_fov_changed)
+        self.fov_height_um_spin.valueChanged.connect(self._on_fov_changed)
+        self.output_width_px_spin.valueChanged.connect(self._on_output_width_px_changed)
+        self.output_height_px_spin.valueChanged.connect(self._on_output_height_px_changed)
 
         self.select_dir_button.clicked.connect(self.select_dir_requested.emit)
         self.save_button.clicked.connect(self.save_requested.emit)
@@ -259,10 +281,12 @@ class ParameterPanel(QtWidgets.QWidget):
             "onset": self.onset_spin.value(),
             "nframe": self.nframe_spin.value(),
             "hshift": self.hshift_spin.value(),
-            "crop_x_um": (self.crop_x_min_spin.value(), self.crop_x_max_spin.value()),
-            "crop_y_um": (self.crop_y_min_spin.value(), self.crop_y_max_spin.value()),
-            "resize_width_um": self.fov_width_um_spin.value(),
-            "resize_height_um": self.fov_height_um_spin.value(),
+            "crop_x_px": (self.crop_x_min_spin.value(), self.crop_x_max_spin.value()),
+            "crop_y_px": (self.crop_y_min_spin.value(), self.crop_y_max_spin.value()),
+            "fov_width_um": self.fov_width_um_spin.value(),
+            "fov_height_um": self.fov_height_um_spin.value(),
+            "output_width_px": self.output_width_px_spin.value(),
+            "output_height_px": self.output_height_px_spin.value(),
         }
 
     def set_limit(self, param: str, vmin: int, vmax: int):
@@ -293,7 +317,67 @@ class ParameterPanel(QtWidgets.QWidget):
     def set_directory(self, directory: str) -> None:
         self.directory_label.setText(directory)
 
-    def set_resize_values(self, width: int, height: int) -> None:
+    def _output_height_from_width(self, width_px: int) -> int:
+        fov_width = max(1, self.fov_width_um_spin.value())
+        fov_height = max(1, self.fov_height_um_spin.value())
+        return max(1, int(round(width_px * fov_height / fov_width)))
+
+    def _output_width_from_height(self, height_px: int) -> int:
+        fov_width = max(1, self.fov_width_um_spin.value())
+        fov_height = max(1, self.fov_height_um_spin.value())
+        return max(1, int(round(height_px * fov_width / fov_height)))
+
+    def _set_output_size_blocked(self, width: int, height: int) -> None:
+        old_width_block = self.output_width_px_spin.blockSignals(True)
+        old_height_block = self.output_height_px_spin.blockSignals(True)
+
+        self.output_width_px_spin.setValue(max(1, int(width)))
+        self.output_height_px_spin.setValue(max(1, int(height)))
+
+        self.output_width_px_spin.blockSignals(old_width_block)
+        self.output_height_px_spin.blockSignals(old_height_block)
+
+    def _sync_output_size_to_fov(self) -> None:
+        if self._output_anchor_axis == "height":
+            height = self.output_height_px_spin.value()
+            width = self._output_width_from_height(height)
+        else:
+            width = self.output_width_px_spin.value()
+            height = self._output_height_from_width(width)
+
+        self._set_output_size_blocked(width, height)
+
+    def _on_fov_changed(self, _value: int) -> None:
+        self._sync_output_size_to_fov()
+        self.fov_changed.emit()
+
+    def _on_output_width_px_changed(self, width: int) -> None:
+        if self._updating_output_size:
+            return
+
+        self._output_anchor_axis = "width"
+        self._updating_output_size = True
+        try:
+            self.output_height_px_spin.setValue(self._output_height_from_width(width))
+        finally:
+            self._updating_output_size = False
+
+        self.output_size_changed.emit()
+
+    def _on_output_height_px_changed(self, height: int) -> None:
+        if self._updating_output_size:
+            return
+
+        self._output_anchor_axis = "height"
+        self._updating_output_size = True
+        try:
+            self.output_width_px_spin.setValue(self._output_width_from_height(height))
+        finally:
+            self._updating_output_size = False
+
+        self.output_size_changed.emit()
+
+    def set_fov_values(self, width: int, height: int) -> None:
         old_width_block = self.fov_width_um_spin.blockSignals(True)
         old_height_block = self.fov_height_um_spin.blockSignals(True)
 
@@ -302,3 +386,6 @@ class ParameterPanel(QtWidgets.QWidget):
 
         self.fov_width_um_spin.blockSignals(old_width_block)
         self.fov_height_um_spin.blockSignals(old_height_block)
+
+    def set_output_size_values(self, width: int, height: int) -> None:
+        self._set_output_size_blocked(width, height)

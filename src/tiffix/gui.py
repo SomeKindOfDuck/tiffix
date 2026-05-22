@@ -36,6 +36,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.params.hshift_changed.connect(self.refresh_image)
         self.params.crop_size_changed.connect(self.crop_image)
         self.params.fov_changed.connect(self.refresh_image)
+        self.params.output_size_changed.connect(self.refresh_image)
         self.params.save_requested.connect(self.save_image)
 
         self._old_onset = 0
@@ -56,51 +57,32 @@ class MainWindow(QtWidgets.QMainWindow):
         self.viewer.left_widget.viewbox.autoRange()
 
     def _get_display_px_per_um(self, params: dict) -> float:
-        width_um = params.get("resize_width_um")
+        width_um = params.get("fov_width_um")
         if width_um is None or width_um <= 0:
             return 1.0
 
-        # corrected_display_img は resize 後の表示画像
         display_h, display_w = self.corrected_display_img.shape[:2]
         return display_w / width_um
 
-    def _compute_display_shape_from_fov(
-        self,
-        img: np.ndarray,
-        width_um: int,
-        height_um: int,
-    ) -> tuple[int, int]:
-        h, w = img.shape[:2]
+    def _get_output_shape(self, params: dict) -> tuple[int, int] | None:
+        output_width_px = params.get("output_width_px")
+        output_height_px = params.get("output_height_px")
 
-        if width_um <= 0 or height_um <= 0:
-            return w, h
+        if output_width_px is None or output_height_px is None:
+            return None
 
-        physical_aspect = width_um / height_um
-        current_aspect = w / h
+        if output_width_px <= 0 or output_height_px <= 0:
+            return None
 
-        # 画像の物理的な縦横比に合わせる。
-        # 片方の軸は元のピクセル数を維持し、もう片方を伸ばす。
-        if current_aspect > physical_aspect:
-            new_width = w
-            new_height = max(1, int(round(w / physical_aspect)))
-        else:
-            new_height = h
-            new_width = max(1, int(round(h * physical_aspect)))
-
-        return new_width, new_height
+        return int(output_width_px), int(output_height_px)
 
     def _resize_for_display(self, img: np.ndarray, params: dict) -> np.ndarray:
-        width_um = params.get("resize_width_um")
-        height_um = params.get("resize_height_um")
+        output_shape = self._get_output_shape(params)
 
-        if width_um is None or height_um is None:
+        if output_shape is None:
             return img
 
-        new_width, new_height = self._compute_display_shape_from_fov(
-            img,
-            width_um=width_um,
-            height_um=height_um,
-        )
+        new_width, new_height = output_shape
 
         if (new_height, new_width) == img.shape[:2]:
             return img
@@ -117,20 +99,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
         params = self.params.get_parameters()
 
-        crop_x_um = params.get("crop_x_um")
-        crop_y_um = params.get("crop_y_um")
+        crop_x_px = params.get("crop_x_px")
+        crop_y_px = params.get("crop_y_px")
 
-        if crop_x_um is None or crop_y_um is None:
+        if crop_x_px is None or crop_y_px is None:
             return
-
-        crop_x_px, crop_y_px = self._crop_um_to_display_px(
-            crop_x_um,
-            crop_y_um,
-            params,
-        )
 
         min_x, max_x = crop_x_px
         min_y, max_y = crop_y_px
+
+        h, w = self.corrected_display_img.shape[:2]
+
+        min_x = max(0, min(min_x, w - 1))
+        max_x = max(1, min(max_x, w))
+        min_y = max(0, min(min_y, h - 1))
+        max_y = max(1, min(max_y, h))
 
         self.viewer.left_widget.show_crop_rect(min_x, max_x, min_y, max_y)
         self.viewer.right_widget.show_crop_rect(min_x, max_x, min_y, max_y)
@@ -266,20 +249,20 @@ class MainWindow(QtWidgets.QMainWindow):
             self.corrected_display_img,
         )
 
-        width_um = params.get("resize_width_um")
-        height_um = params.get("resize_height_um")
+        output_width_px = params.get("output_width_px")
+        output_height_px = params.get("output_height_px")
 
-        if width_um is not None and height_um is not None:
-            self.params.set_limit("crop_x_min", 0, width_um - 1)
-            self.params.set_limit("crop_x_max", 1, width_um)
-            self.params.set_limit("crop_y_min", 0, height_um - 1)
-            self.params.set_limit("crop_y_max", 1, height_um)
+        if output_width_px is not None and output_height_px is not None:
+            self.params.set_limit("crop_x_min", 0, output_width_px - 1)
+            self.params.set_limit("crop_x_max", 1, output_width_px)
+            self.params.set_limit("crop_y_min", 0, output_height_px - 1)
+            self.params.set_limit("crop_y_max", 1, output_height_px)
 
             if reset_crop:
                 self.params.crop_x_min_spin.setValue(0)
-                self.params.crop_x_max_spin.setValue(width_um)
+                self.params.crop_x_max_spin.setValue(output_width_px)
                 self.params.crop_y_min_spin.setValue(0)
-                self.params.crop_y_max_spin.setValue(height_um)
+                self.params.crop_y_max_spin.setValue(output_height_px)
 
         self.crop_image()
 
@@ -293,13 +276,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.uncorrected_img = sine_correction(self.original_img)
 
         if reset_geometry:
-            # resize 初期値は、補正後・resize前画像のサイズにする
             preview_corrected_img = sine_correction(
                 align_img(self.original_img, params.get("hshift", 0))
             )
             h, w = preview_corrected_img.shape
 
-            self.params.set_resize_values(width=w, height=h)
+            self.params.set_fov_values(width=w, height=h)
+            self.params.set_output_size_values(width=w, height=h)
 
         self.refresh_image(reset_crop=reset_geometry)
 
@@ -343,30 +326,32 @@ class MainWindow(QtWidgets.QMainWindow):
             if self.corrected_img is None:
                 return
 
-            h, w = self.corrected_img.shape
+            output_shape = self._get_output_shape(params)
+            if output_shape is None:
+                return
 
-            new_width, new_height = self._compute_display_shape_from_fov(
-                self.corrected_img,
-                width_um=params.get("resize_width_um"),
-                height_um=params.get("resize_height_um"),
-            )
+            new_width, new_height = output_shape
 
-            crop_x = params.get("crop_x_um")
-            crop_y = params.get("crop_y_um")
+            crop_x = params.get("crop_x_px")
+            crop_y = params.get("crop_y_px")
             if crop_x is None or crop_y is None:
                 return
 
             scaled_min_x, scaled_max_x = crop_x
             scaled_min_y, scaled_max_y = crop_y
 
+            final_width = max(0, scaled_max_x - scaled_min_x)
+            final_height = max(0, scaled_max_y - scaled_min_y)
+
             reply = QtWidgets.QMessageBox.question(
                 self,
                 "Confirm image correction",
                 f"Apply horizontal shift correction of {hshift} px\n\n"
-                f"Output image size: {new_width} × {new_height} px\n"
+                f"Resized image size: {new_width} × {new_height} px\n"
                 f"Crop range: "
                 f"x={scaled_min_x}-{scaled_max_x}, "
-                f"y={scaled_min_y}-{scaled_max_y}\n\n"
+                f"y={scaled_min_y}-{scaled_max_y}\n"
+                f"Final saved image size: {final_width} × {final_height} px\n\n"
                 f"Target directory:\n{self.image_dir}\n\n"
                 f"Save corrected images to a 'corrected' subdirectory?",
                 QtWidgets.QMessageBox.StandardButton.Yes,
