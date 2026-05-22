@@ -183,6 +183,12 @@ class ParameterPanel(QtWidgets.QWidget):
         form_layout.addRow("FOV width (µm)", self.fov_width_um_spin)
         form_layout.addRow("FOV height (µm)", self.fov_height_um_spin)
 
+        form_layout.addRow(QtWidgets.QLabel(""))
+        output_label = QtWidgets.QLabel("Output image size")
+        form_layout.addRow(output_label)
+        form_layout.addRow("Output width (px)", self.output_width_px_spin)
+        form_layout.addRow("Output height (px)", self.output_height_px_spin)
+
         crop_widget = QtWidgets.QWidget()
         crop_layout = QtWidgets.QGridLayout(crop_widget)
         crop_layout.setContentsMargins(0, 0, 0, 0)
@@ -200,12 +206,6 @@ class ParameterPanel(QtWidgets.QWidget):
         crop_label = QtWidgets.QLabel("Cropping image")
         form_layout.addRow(crop_label)
         form_layout.addRow(crop_widget)
-
-        form_layout.addRow(QtWidgets.QLabel(""))
-        output_label = QtWidgets.QLabel("Output image size")
-        form_layout.addRow(output_label)
-        form_layout.addRow("Output width (px)", self.output_width_px_spin)
-        form_layout.addRow("Output height (px)", self.output_height_px_spin)
 
         form_layout.addRow(QtWidgets.QLabel(""))
         form_layout.addRow("Start frame for averaging", self.onset_spin)
@@ -288,6 +288,8 @@ class ParameterPanel(QtWidgets.QWidget):
             "fov_height_um": self.fov_height_um_spin.value(),
             "output_width_px": self.output_width_px_spin.value(),
             "output_height_px": self.output_height_px_spin.value(),
+            "save_start": self.save_start_spin.value(),
+            "save_end": self.save_end_spin.value(),
         }
 
     def set_limit(self, param: str, vmin: int, vmax: int):
