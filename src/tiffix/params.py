@@ -154,19 +154,6 @@ class ParameterPanel(QtWidgets.QWidget):
         self.crop_y_max_spin.setRange(1, 10000)
         self.crop_y_max_spin.setValue(0)
 
-        crop_widget = QtWidgets.QWidget()
-        crop_layout = QtWidgets.QGridLayout(crop_widget)
-        crop_layout.setContentsMargins(0, 0, 0, 0)
-        crop_layout.setHorizontalSpacing(6)
-        crop_layout.setVerticalSpacing(2)
-
-        crop_layout.addWidget(QtWidgets.QLabel("Min (px)"), 0, 0)
-        crop_layout.addWidget(QtWidgets.QLabel("Max (px)"), 0, 1)
-        crop_layout.addWidget(self.crop_x_min_spin, 1, 0)
-        crop_layout.addWidget(self.crop_x_max_spin, 1, 1)
-        crop_layout.addWidget(self.crop_y_min_spin, 2, 0)
-        crop_layout.addWidget(self.crop_y_max_spin, 2, 1)
-
         self.fov_width_um_spin = ClampSpinBox()
         self.fov_width_um_spin.setRange(1, 10000)
         self.fov_width_um_spin.setValue(1000)
@@ -190,11 +177,24 @@ class ParameterPanel(QtWidgets.QWidget):
         self._updating_output_size = False
         self._output_anchor_axis = "width"
 
-        form_layout.addRow("Start frame for averaging", self.onset_spin)
-        form_layout.addRow("Frames for averaging", self.nframe_spin)
-        form_layout.addRow(self.auto_reload_checkbox)
-        form_layout.addRow(self.load_button)
-        form_layout.addRow("Horizontal shift (px)", self.hshift_spin)
+        form_layout.addRow(QtWidgets.QLabel(""))
+        fov_label = QtWidgets.QLabel("Field of view")
+        form_layout.addRow(fov_label)
+        form_layout.addRow("FOV width (µm)", self.fov_width_um_spin)
+        form_layout.addRow("FOV height (µm)", self.fov_height_um_spin)
+
+        crop_widget = QtWidgets.QWidget()
+        crop_layout = QtWidgets.QGridLayout(crop_widget)
+        crop_layout.setContentsMargins(0, 0, 0, 0)
+        crop_layout.setHorizontalSpacing(6)
+        crop_layout.setVerticalSpacing(2)
+
+        crop_layout.addWidget(QtWidgets.QLabel("Min (px)"), 0, 0)
+        crop_layout.addWidget(QtWidgets.QLabel("Max (px)"), 0, 1)
+        crop_layout.addWidget(self.crop_x_min_spin, 1, 0)
+        crop_layout.addWidget(self.crop_x_max_spin, 1, 1)
+        crop_layout.addWidget(self.crop_y_min_spin, 2, 0)
+        crop_layout.addWidget(self.crop_y_max_spin, 2, 1)
 
         form_layout.addRow(QtWidgets.QLabel(""))
         crop_label = QtWidgets.QLabel("Cropping image")
@@ -202,16 +202,17 @@ class ParameterPanel(QtWidgets.QWidget):
         form_layout.addRow(crop_widget)
 
         form_layout.addRow(QtWidgets.QLabel(""))
-        fov_label = QtWidgets.QLabel("Field of view")
-        form_layout.addRow(fov_label)
-        form_layout.addRow("FOV width (µm)", self.fov_width_um_spin)
-        form_layout.addRow("FOV height (µm)", self.fov_height_um_spin)
-
-        form_layout.addRow(QtWidgets.QLabel(""))
         output_label = QtWidgets.QLabel("Output image size")
         form_layout.addRow(output_label)
         form_layout.addRow("Output width (px)", self.output_width_px_spin)
         form_layout.addRow("Output height (px)", self.output_height_px_spin)
+
+        form_layout.addRow(QtWidgets.QLabel(""))
+        form_layout.addRow("Start frame for averaging", self.onset_spin)
+        form_layout.addRow("Frames for averaging", self.nframe_spin)
+        form_layout.addRow(self.auto_reload_checkbox)
+        form_layout.addRow(self.load_button)
+        form_layout.addRow("Horizontal shift (px)", self.hshift_spin)
 
         main_layout.addLayout(form_layout)
         main_layout.addStretch()
