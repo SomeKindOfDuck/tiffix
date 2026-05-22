@@ -10,7 +10,7 @@ from PyQt6 import QtCore, QtWidgets
 
 from tiffix import align_img, load_mean_image, reshape_img, sine_correction
 from tiffix.params import ParameterPanel
-from tiffix.save import SaveImagesWorker
+from tiffix.save import SaveImagesWorker, preprocess_corrected_image
 from tiffix.theme import ICEBERG_DARK, apply_colorscheme
 from tiffix.viewer import ImageCompareWidget
 
@@ -364,13 +364,40 @@ class MainWindow(QtWidgets.QMainWindow):
             output_dir = self.image_dir.joinpath("corrected")
             output_dir.mkdir(exist_ok=True)
 
-            img = tifffile.imread(self.tif_files[0])
-            vmin, vmax = np.min(img), np.max(img)
+            stat_files = selected_tif_files[:min(100, len(selected_tif_files))]
 
-            n_stat = min(100, len(self.tif_files))
-            for i in range(1, n_stat):
-                img = tifffile.imread(self.tif_files[i])
-                _min, _max = np.min(img), np.max(img)
+            stat_img = preprocess_corrected_image(
+                tf_path=stat_files[0],
+                hshift=hshift,
+                new_width=new_width,
+                new_height=new_height,
+                scaled_min_x=scaled_min_x,
+                scaled_max_x=scaled_max_x,
+                scaled_min_y=scaled_min_y,
+                scaled_max_y=scaled_max_y,
+            )
+
+            if stat_img.size == 0:
+                raise ValueError("Crop range produced an empty image.")
+
+            vmin, vmax = np.min(stat_img), np.max(stat_img)
+
+            for tf_path in stat_files[1:]:
+                stat_img = preprocess_corrected_image(
+                    tf_path=tf_path,
+                    hshift=hshift,
+                    new_width=new_width,
+                    new_height=new_height,
+                    scaled_min_x=scaled_min_x,
+                    scaled_max_x=scaled_max_x,
+                    scaled_min_y=scaled_min_y,
+                    scaled_max_y=scaled_max_y,
+                )
+
+                if stat_img.size == 0:
+                    raise ValueError("Crop range produced an empty image.")
+
+                _min, _max = np.min(stat_img), np.max(stat_img)
                 vmin = min(vmin, _min)
                 vmax = max(vmax, _max)
 

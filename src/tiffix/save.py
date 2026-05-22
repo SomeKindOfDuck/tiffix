@@ -9,6 +9,35 @@ from PyQt6 import QtCore
 from tiffix import align_img, reshape_img, sine_correction
 
 
+def preprocess_corrected_image(
+    tf_path: str | Path,
+    hshift: int,
+    new_width: int,
+    new_height: int,
+    scaled_min_x: int,
+    scaled_max_x: int,
+    scaled_min_y: int,
+    scaled_max_y: int,
+) -> np.ndarray:
+    img = tifffile.imread(tf_path)
+    reshaped_img = reshape_img(img)
+    aligned_img = align_img(reshaped_img, hshift)
+    corrected_img = sine_correction(aligned_img)
+
+    corrected_img = cv2.resize(
+        corrected_img,
+        (new_width, new_height),
+        interpolation=cv2.INTER_LINEAR,
+    )
+
+    corrected_img = corrected_img[
+        scaled_min_y:scaled_max_y,
+        scaled_min_x:scaled_max_x,
+    ]
+
+    return corrected_img
+
+
 def process_and_save_one(
     tf_path: str,
     output_dir: str,
@@ -25,12 +54,16 @@ def process_and_save_one(
     tf = Path(tf_path)
     output_path = Path(output_dir) / tf.name
 
-    img = tifffile.imread(tf)
-    reshaped_img = reshape_img(img)
-    aligned_img = align_img(reshaped_img, hshift)
-    corrected_img = sine_correction(aligned_img)
-    corrected_img = cv2.resize(corrected_img, (new_width, new_height))
-    corrected_img = corrected_img[scaled_min_y:scaled_max_y, scaled_min_x:scaled_max_x]
+    corrected_img = preprocess_corrected_image(
+        tf_path=tf,
+        hshift=hshift,
+        new_width=new_width,
+        new_height=new_height,
+        scaled_min_x=scaled_min_x,
+        scaled_max_x=scaled_max_x,
+        scaled_min_y=scaled_min_y,
+        scaled_max_y=scaled_max_y,
+    )
 
     corrected_img = np.clip(corrected_img, scale_min, scale_max)
     corrected_img = (corrected_img - scale_min) / (scale_max - scale_min)
@@ -39,6 +72,7 @@ def process_and_save_one(
 
     tifffile.imwrite(output_path, corrected_img)
     return str(output_path)
+
 
 class SaveImagesWorker(QtCore.QObject):
     finished = QtCore.pyqtSignal()
