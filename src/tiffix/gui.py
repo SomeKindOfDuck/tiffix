@@ -286,6 +286,99 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.refresh_image(reset_crop=reset_geometry)
 
+    def _ask_save_output_dir(
+        self,
+        hshift: int,
+        new_width: int,
+        new_height: int,
+        scaled_min_x: int,
+        scaled_max_x: int,
+        scaled_min_y: int,
+        scaled_max_y: int,
+    ) -> Path | None:
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("Confirm image correction")
+
+        layout = QtWidgets.QVBoxLayout(dialog)
+
+        info_label = QtWidgets.QLabel(
+            f"Apply horizontal shift correction of {hshift} px\n\n"
+            f"Output image size: {new_width} × {new_height} px\n"
+            f"Crop range: "
+            f"x={scaled_min_x}-{scaled_max_x}, "
+            f"y={scaled_min_y}-{scaled_max_y}\n\n"
+            f"Target directory:\n{self.image_dir}"
+        )
+        info_label.setTextInteractionFlags(
+            QtCore.Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        layout.addWidget(info_label)
+
+        form_layout = QtWidgets.QFormLayout()
+
+        output_dir_edit = QtWidgets.QLineEdit("corrected")
+        form_layout.addRow("Output directory", output_dir_edit)
+
+        layout.addLayout(form_layout)
+
+        output_preview_label = QtWidgets.QLabel()
+        output_preview_label.setWordWrap(True)
+        output_preview_label.setTextInteractionFlags(
+            QtCore.Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        layout.addWidget(output_preview_label)
+
+        def resolve_output_dir() -> Path:
+            text = output_dir_edit.text().strip()
+            path = Path(text).expanduser()
+
+            if path.is_absolute():
+                return path
+
+            return self.image_dir / path
+
+        def update_output_preview() -> None:
+            if not output_dir_edit.text().strip():
+                output_preview_label.setText("Output path:\n<empty>")
+                return
+
+            output_preview_label.setText(
+                f"Output path:\n{resolve_output_dir()}"
+            )
+
+        def accept_if_valid() -> None:
+            if not output_dir_edit.text().strip():
+                QtWidgets.QMessageBox.warning(
+                    dialog,
+                    "Invalid output directory",
+                    "Please enter an output directory.",
+                )
+                output_dir_edit.setFocus()
+                return
+
+            dialog.accept()
+
+        output_dir_edit.textChanged.connect(update_output_preview)
+        update_output_preview()
+
+        button_box = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.button(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+        ).setText("Save")
+
+        button_box.accepted.connect(accept_if_valid)
+        button_box.rejected.connect(dialog.reject)
+
+        layout.addWidget(button_box)
+
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return None
+
+        return resolve_output_dir()
+
     def save_image(self) -> None:
         try:
             if not hasattr(self, "image_dir"):
@@ -343,26 +436,20 @@ class MainWindow(QtWidgets.QMainWindow):
             final_width = max(0, scaled_max_x - scaled_min_x)
             final_height = max(0, scaled_max_y - scaled_min_y)
 
-            reply = QtWidgets.QMessageBox.question(
-                self,
-                "Confirm image correction",
-                f"Apply horizontal shift correction of {hshift} px\n\n"
-                f"Resized image size: {new_width} × {new_height} px\n"
-                f"Crop range: "
-                f"x={scaled_min_x}-{scaled_max_x} px, "
-                f"y={scaled_min_y}-{scaled_max_y} px\n"
-                f"Final saved image size: {final_width} × {final_height} px\n\n"
-                f"Target directory:\n{self.image_dir}\n\n"
-                f"Save corrected images to a 'corrected' subdirectory?",
-                QtWidgets.QMessageBox.StandardButton.Yes,
-                QtWidgets.QMessageBox.StandardButton.No,
+            output_dir = self._ask_save_output_dir(
+                hshift=hshift,
+                new_width=new_width,
+                new_height=new_height,
+                scaled_min_x=scaled_min_x,
+                scaled_max_x=scaled_max_x,
+                scaled_min_y=scaled_min_y,
+                scaled_max_y=scaled_max_y,
             )
 
-            if reply != QtWidgets.QMessageBox.StandardButton.Yes:
+            if output_dir is None:
                 return
 
-            output_dir = self.image_dir.joinpath("corrected")
-            output_dir.mkdir(exist_ok=True)
+            output_dir.mkdir(parents=True, exist_ok=True)
 
             stat_files = selected_tif_files[:min(100, len(selected_tif_files))]
 
