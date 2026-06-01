@@ -200,6 +200,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 return
 
             self.image_dir = Path(directory)
+            self.scale_min = None
+            self.scale_max = None
             self.params.set_directory(directory)
             self.reload_image(reset_geometry=True)
 
@@ -467,33 +469,34 @@ class MainWindow(QtWidgets.QMainWindow):
             if stat_img.size == 0:
                 raise ValueError("Crop range produced an empty image.")
 
-            vmin, vmax = np.min(stat_img), np.max(stat_img)
+            if self.scale_min is None or self.scale_max is None:
+                vmin, vmax = np.min(stat_img), np.max(stat_img)
 
-            for tf_path in stat_files[1:]:
-                stat_img = preprocess_corrected_image(
-                    tf_path=tf_path,
-                    hshift=hshift,
-                    new_width=new_width,
-                    new_height=new_height,
-                    scaled_min_x=scaled_min_x,
-                    scaled_max_x=scaled_max_x,
-                    scaled_min_y=scaled_min_y,
-                    scaled_max_y=scaled_max_y,
-                )
+                for tf_path in stat_files[1:]:
+                    stat_img = preprocess_corrected_image(
+                        tf_path=tf_path,
+                        hshift=hshift,
+                        new_width=new_width,
+                        new_height=new_height,
+                        scaled_min_x=scaled_min_x,
+                        scaled_max_x=scaled_max_x,
+                        scaled_min_y=scaled_min_y,
+                        scaled_max_y=scaled_max_y,
+                    )
 
-                if stat_img.size == 0:
-                    raise ValueError("Crop range produced an empty image.")
+                    if stat_img.size == 0:
+                        raise ValueError("Crop range produced an empty image.")
 
-                _min, _max = np.min(stat_img), np.max(stat_img)
-                vmin = min(vmin, _min)
-                vmax = max(vmax, _max)
+                    _min, _max = np.min(stat_img), np.max(stat_img)
+                    vmin = min(vmin, _min)
+                    vmax = max(vmax, _max)
 
-            scale_min = vmin * 0.9
-            scale_max = vmax * 1.1
+                self.scale_min = vmin * 0.9
+                self.scale_max = vmax * 1.1
 
-            if scale_max <= scale_min:
+            if self.scale_max <= self.scale_min:
                 raise ValueError(
-                    f"Invalid scaling range: scale_min={scale_min}, scale_max={scale_max}"
+                    f"Invalid scaling range: scale_min={self.scale_min}, scale_max={self.scale_max}"
                 )
 
             max_workers_default = max(1, (os.cpu_count() or 2) - 1)
@@ -522,8 +525,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 scaled_max_x=scaled_max_x,
                 scaled_min_y=scaled_min_y,
                 scaled_max_y=scaled_max_y,
-                scale_min=scale_min,
-                scale_max=scale_max,
+                scale_min=self.scale_min,
+                scale_max=self.scale_max,
                 max_workers=worker_count,
             )
 
