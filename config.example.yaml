@@ -1,0 +1,30 @@
+# tiffix-cli 用の設定ファイル例。
+# コマンドラインオプションで同名の値を指定した場合は、そちらが優先される。
+
+input_dir: /path/to/tiff/images   # 必須: *.tif / *.tiff が入っているディレクトリ
+output_dir: corrected              # 出力先。相対パスは input_dir 基準
+
+# 水平方向のシフト量 [px]。
+# 単一の整数を指定すると、入力ディレクトリ内の全フレームに同じ値を適用する。
+# hshift: 0
+#
+# フレーム区間ごとに異なる値を適用したい場合はリストで指定する。
+# start/end は入力ディレクトリ内の全TIFFファイルに対する0始まりのインデックスで、
+# Pythonのインデックスと同様に -1 は最後のフレームを表す（両端を含む）。
+# 保存対象の範囲は、区間の最小開始インデックス〜最大終了インデックスから自動的に決まる
+# （区間同士の重複や隙間はエラーになる）。
+hshift:
+  - {start: 0, end: 99, value: 5}      # 0〜99番目のフレームは hshift=5
+  - {start: 100, end: -1, value: 10}   # 100番目のフレームから最後まではhshift=10
+
+# 未指定の場合は補正後画像のサイズがそのまま使われる
+output_width: 1000
+output_height: 1000
+
+# 未指定の場合は output_width / output_height 全体がクロップ範囲になる
+crop_x_min: 0
+crop_x_max: 1000
+crop_y_min: 0
+crop_y_max: 1000
+
+workers: 4                         # 並列処理数（未指定なら CPUコア数 - 1）

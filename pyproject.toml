@@ -9,6 +9,7 @@ dependencies = [
     "opencv-python>=4.13.0.92",
     "pyqt6>=6.11.0",
     "pyqtgraph>=0.14.0",
+    "pyyaml>=6.0.3",
     "scipy>=1.17.1",
     "tifffile>=2026.4.11",
 ]
@@ -26,3 +27,4 @@ dev = [
 
 [project.scripts]
 tiffix = "tiffix.gui:main"
+tiffix-cli = "tiffix.cli:main"
