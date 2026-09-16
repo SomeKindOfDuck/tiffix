@@ -83,7 +83,7 @@ class SaveImagesWorker(QtCore.QObject):
         self,
         tif_files: list[Path],
         output_dir: Path,
-        hshift: int,
+        hshifts: list[int],
         new_width: int,
         new_height: int,
         scaled_min_x: int,
@@ -95,9 +95,12 @@ class SaveImagesWorker(QtCore.QObject):
         max_workers: int | None = None,
     ):
         super().__init__()
+        if len(hshifts) != len(tif_files):
+            raise ValueError("hshifts は tif_files と同じ長さである必要があります。")
+
         self.tif_files = tif_files
         self.output_dir = output_dir
-        self.hshift = hshift
+        self.hshifts = hshifts
         self.new_width = new_width
         self.new_height = new_height
         self.scaled_min_x = scaled_min_x
@@ -120,7 +123,7 @@ class SaveImagesWorker(QtCore.QObject):
                         process_and_save_one,
                         str(tf),
                         str(self.output_dir),
-                        self.hshift,
+                        hshift,
                         self.new_width,
                         self.new_height,
                         self.scaled_min_x,
@@ -130,7 +133,7 @@ class SaveImagesWorker(QtCore.QObject):
                         self.scale_min,
                         self.scale_max,
                     )
-                    for tf in self.tif_files
+                    for tf, hshift in zip(self.tif_files, self.hshifts)
                 ]
 
                 for future in as_completed(futures):

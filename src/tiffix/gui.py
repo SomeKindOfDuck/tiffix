@@ -6,9 +6,11 @@ import cv2
 import numpy as np
 import pyqtgraph as pg
 import tifffile
+import yaml
 from PyQt6 import QtCore, QtWidgets
 
 from tiffix import align_img, load_mean_image, reshape_img, sine_correction
+from tiffix.hshift import resolve_hshift_map
 from tiffix.params import ParameterPanel
 from tiffix.save import SaveImagesWorker, preprocess_corrected_image
 from tiffix.theme import ICEBERG_DARK, apply_colorscheme
@@ -38,6 +40,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.params.fov_changed.connect(lambda: self.refresh_image(reset_crop=True))
         self.params.output_size_changed.connect(lambda: self.refresh_image(reset_crop=True))
         self.params.save_requested.connect(self.save_image)
+        self.params.save_settings_requested.connect(self.save_settings)
+        self.params.load_settings_requested.connect(self.load_settings)
 
         self._old_onset = 0
 
@@ -211,10 +215,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.params.set_limit("nframe", 1, self.n_files - 1)
             self.params.set_limit("hshift", -w//5, w//5)
 
-            self.params.set_limit("save_start", 0, self.n_files - 1)
-            self.params.set_limit("save_end", 0, self.n_files - 1)
-            self.params.save_start_spin.setValue(0)
-            self.params.save_end_spin.setValue(self.n_files - 1)
+            self.params.set_hshift_row_index_limit(self.n_files - 1)
+            self.params.set_hshift_row_value_limit(-w//5, w//5)
+            self.params.reset_hshift_rows(default_end=self.n_files - 1)
 
             QtCore.QTimer.singleShot(0, self._init_autorange)
             QtWidgets.QMessageBox.information(
@@ -228,6 +231,72 @@ class MainWindow(QtWidgets.QMainWindow):
                 self,
                 "Error",
                 f"Failed to select directory:\n{e}",
+            )
+
+    def save_settings(self) -> None:
+        try:
+            path, _ = QtWidgets.QFileDialog.getSaveFileName(
+                self,
+                "Save settings",
+                str(Path().cwd() / "settings.yaml"),
+                "YAML files (*.yaml *.yml)",
+            )
+
+            if not path:
+                return
+
+            settings = self.params.get_settings_for_save()
+
+            with open(path, "w") as f:
+                yaml.safe_dump(settings, f, allow_unicode=True, sort_keys=False)
+
+            QtWidgets.QMessageBox.information(
+                self,
+                "Settings saved",
+                f"Saved settings to:\n{path}",
+            )
+
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to save settings:\n{e}",
+            )
+
+    def load_settings(self) -> None:
+        try:
+            path, _ = QtWidgets.QFileDialog.getOpenFileName(
+                self,
+                "Load settings",
+                str(Path().cwd()),
+                "YAML files (*.yaml *.yml)",
+            )
+
+            if not path:
+                return
+
+            with open(path, "r") as f:
+                settings = yaml.safe_load(f) or {}
+
+            if not isinstance(settings, dict):
+                raise ValueError("設定ファイルの形式が不正です。")
+
+            self.params.apply_settings(settings)
+
+            if hasattr(self, "image_dir"):
+                self.refresh_image(reset_crop=False)
+
+            QtWidgets.QMessageBox.information(
+                self,
+                "Settings loaded",
+                f"Loaded settings from:\n{path}",
+            )
+
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to load settings:\n{e}",
             )
 
     def refresh_image(self, reset_crop: bool = False):
@@ -290,7 +359,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _ask_save_output_dir(
         self,
-        hshift: int,
+        hshift_ranges: list[dict],
         new_width: int,
         new_height: int,
         scaled_min_x: int,
@@ -303,8 +372,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         layout = QtWidgets.QVBoxLayout(dialog)
 
+        hshift_summary = "\n".join(
+            f"  frame {r['start']}-{r['end']}: hshift={r['value']} px"
+            for r in hshift_ranges
+        )
+
         info_label = QtWidgets.QLabel(
-            f"Apply horizontal shift correction of {hshift} px\n\n"
+            f"Apply horizontal shift correction:\n{hshift_summary}\n\n"
             f"Output image size: {new_width} × {new_height} px\n"
             f"Crop range: "
             f"x={scaled_min_x}-{scaled_max_x}, "
@@ -392,16 +466,17 @@ class MainWindow(QtWidgets.QMainWindow):
                 return
 
             params = self.params.get_parameters()
-            hshift = params.get("hshift", 0)
 
-            save_start = params.get("save_start", 0)
-            save_end = params.get("save_end", self.n_files - 1)
-
-            if save_start > save_end:
+            try:
+                save_start, save_end, hshift_by_frame = resolve_hshift_map(
+                    params.get("save_hshift_ranges", []),
+                    self.n_files,
+                )
+            except ValueError as e:
                 QtWidgets.QMessageBox.warning(
                     self,
-                    "Invalid save range",
-                    "Save start index must be less than or equal to save end index.",
+                    "Invalid save frame ranges",
+                    str(e),
                 )
                 return
 
@@ -413,9 +488,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     "No images selected",
                     "No TIFF files are included in the selected save range.",
                 )
-                return
-
-            if self.corrected_img is None:
                 return
 
             if self.corrected_img is None:
@@ -439,7 +511,7 @@ class MainWindow(QtWidgets.QMainWindow):
             final_height = max(0, scaled_max_y - scaled_min_y)
 
             output_dir = self._ask_save_output_dir(
-                hshift=hshift,
+                hshift_ranges=params.get("save_hshift_ranges", []),
                 new_width=new_width,
                 new_height=new_height,
                 scaled_min_x=scaled_min_x,
@@ -453,11 +525,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            stat_files = selected_tif_files[:min(100, len(selected_tif_files))]
+            stat_count = min(100, len(selected_tif_files))
+            stat_files = selected_tif_files[:stat_count]
+            stat_hshifts = hshift_by_frame[:stat_count]
 
             stat_img = preprocess_corrected_image(
                 tf_path=stat_files[0],
-                hshift=hshift,
+                hshift=stat_hshifts[0],
                 new_width=new_width,
                 new_height=new_height,
                 scaled_min_x=scaled_min_x,
@@ -472,7 +546,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if self.scale_min is None or self.scale_max is None:
                 vmin, vmax = np.min(stat_img), np.max(stat_img)
 
-                for tf_path in stat_files[1:]:
+                for tf_path, hshift in zip(stat_files[1:], stat_hshifts[1:]):
                     stat_img = preprocess_corrected_image(
                         tf_path=tf_path,
                         hshift=hshift,
@@ -518,7 +592,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.save_worker = SaveImagesWorker(
                 tif_files=selected_tif_files,
                 output_dir=output_dir,
-                hshift=hshift,
+                hshifts=hshift_by_frame,
                 new_width=new_width,
                 new_height=new_height,
                 scaled_min_x=scaled_min_x,
