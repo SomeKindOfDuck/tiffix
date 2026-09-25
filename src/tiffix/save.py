@@ -6,7 +6,7 @@ import numpy as np
 import tifffile
 from PyQt6 import QtCore
 
-from tiffix import align_img, reshape_img, sine_correction
+from tiffix import correct_raw_img
 
 
 def preprocess_corrected_image(
@@ -20,9 +20,7 @@ def preprocess_corrected_image(
     scaled_max_y: int,
 ) -> np.ndarray:
     img = tifffile.imread(tf_path)
-    reshaped_img = reshape_img(img)
-    aligned_img = align_img(reshaped_img, hshift)
-    corrected_img = sine_correction(aligned_img)
+    corrected_img = correct_raw_img(img, hshift)
 
     corrected_img = cv2.resize(
         corrected_img,

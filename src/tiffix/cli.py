@@ -22,7 +22,7 @@ import numpy as np
 import tifffile
 import yaml
 
-from tiffix import align_img, reshape_img, sine_correction
+from tiffix import correct_raw_img
 from tiffix.hshift import resolve_hshift_map
 from tiffix.save import preprocess_corrected_image, process_and_save_one
 
@@ -265,7 +265,7 @@ def run(config: dict[str, Any]) -> None:
     if output_width is None or output_height is None:
         # 補正後の画像サイズはどのフレームでも同じなので、保存対象の先頭の1枚だけ読んで判定する。
         img = tifffile.imread(selected_tif_files[0])
-        corrected_img = sine_correction(align_img(reshape_img(img), hshift_by_frame[0]))
+        corrected_img = correct_raw_img(img, hshift_by_frame[0])
         default_height, default_width = corrected_img.shape
         output_width = default_width if output_width is None else int(output_width)
         output_height = default_height if output_height is None else int(output_height)
