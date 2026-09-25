@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import tifffile
-from scipy.interpolate import interp1d
 
 
 def reshape_img(img: np.ndarray) -> np.ndarray:
@@ -46,20 +45,15 @@ def load_mean_image(files: list[Path], onset: int, offset: int) -> np.ndarray:
 def sine_correction(img: np.ndarray) -> np.ndarray:
     _, w = img.shape
     sin_x = 0.5 * (1 - np.cos(np.pi * np.arange(1, w + 1) / w))
-    sin_xq = np.linspace(0, 1, w)
+    # interp1d(kind="linear", fill_value="extrapolate") と同じ線形補間を、
+    # 補間位置のインデックスと重みを直接計算して行う（先頭列は捨てるので最初から除く）。
+    sin_xq = np.linspace(0, 1, w)[1:]
 
-    interp = interp1d(
-        sin_x,
-        img,
-        axis=1,
-        kind="linear",
-        bounds_error=False,
-        fill_value="extrapolate",
-        assume_sorted=True,
-    )
+    # 範囲外の点は端の区間を延長して外挿する
+    idx = np.clip(np.searchsorted(sin_x, sin_xq, side="right") - 1, 0, w - 2)
+    t = (sin_xq - sin_x[idx]) / (sin_x[idx + 1] - sin_x[idx])
 
-    corrected = interp(sin_xq)
-    corrected = corrected[:, 1:]
+    corrected = img[:, idx] * (1 - t) + img[:, idx + 1] * t
     return corrected
 
 def align_img(img: np.ndarray, delta: int = 0):
